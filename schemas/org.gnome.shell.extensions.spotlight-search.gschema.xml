@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.spotlight-search" path="/org/gnome/shell/extensions/spotlight-search/">
+    <key name="toggle-spotlight" type="as">
+      <default>['&lt;Super&gt;space']</default>
+      <summary>Toggle Spotlight Search</summary>
+    </key>
+  </schema>
+</schemalist>

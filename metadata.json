@@ -1,0 +1,8 @@
+{
+  "name": "Spotlight Search Style",
+  "description": "Transforms the GNOME search into a centered macOS Spotlight style.",
+  "uuid": "spotlight-search@surajsarkar",
+  "shell-version": ["46"],
+  "version": 1,
+  "settings-schema": "org.gnome.shell.extensions.spotlight-search"
+}
