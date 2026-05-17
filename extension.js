@@ -95,13 +95,20 @@ class SpotlightOverlay extends St.Widget {
         });
         this._searchRow.add_child(this._searchEntry);
 
-        /* ── divider (hidden until results appear) ── */
+        /* ── Divider between search bar and results ── */
         this._divider = new St.Widget({
             style_class: 'spotlight-divider',
             visible: false,
         });
         this._card.add_child(this._divider);
 
+        /* ── Results wrapper for margins ── */
+        this._resultsWrapper = new St.BoxLayout({
+            style_class: 'spotlight-results-wrapper',
+            vertical: true,
+            visible: false,
+        });
+        
         /* ── results list ── */
         this._resultsBox = new St.BoxLayout({
             style_class: 'spotlight-results-box',
@@ -117,7 +124,8 @@ class SpotlightOverlay extends St.Widget {
             x_expand: true,
         });
         this._resultsScroll.add_child(this._resultsBox);
-        this._card.add_child(this._resultsScroll);
+        this._resultsWrapper.add_child(this._resultsScroll);
+        this._card.add_child(this._resultsWrapper);
 
         /* ── key handling on the ClutterText ── */
         this._searchEntry.clutter_text.connect('text-changed', () => {
@@ -266,6 +274,7 @@ class SpotlightOverlay extends St.Widget {
         this._resultsBox.remove_all_children();
         this._resultsScroll.hide();
         this._divider.hide();
+        this._resultsWrapper.hide();
         this._results = [];
     }
 
@@ -276,12 +285,14 @@ class SpotlightOverlay extends St.Widget {
                 style_class: 'spotlight-no-results',
             });
             this._resultsBox.add_child(empty);
+            this._resultsWrapper.show();
             this._resultsScroll.show();
             this._divider.show();
             return;
         }
 
         this._divider.show();
+        this._resultsWrapper.show();
         this._resultsScroll.show();
 
         this._results.forEach((app, index) => {
@@ -303,12 +314,12 @@ class SpotlightOverlay extends St.Widget {
             // App icon
             let iconTexture = null;
             if (app.create_icon_texture) {
-                iconTexture = app.create_icon_texture(28);
+                iconTexture = app.create_icon_texture(32);
             } else {
                 const gioIcon = app.get_icon();
                 iconTexture = new St.Icon({
                     gicon: gioIcon,
-                    icon_size: 28,
+                    icon_size: 32,
                 });
             }
             iconTexture.style_class = 'spotlight-result-icon';
