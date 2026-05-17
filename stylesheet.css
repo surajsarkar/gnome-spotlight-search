@@ -10,21 +10,34 @@
 
 /* ── The floating card ── */
 .spotlight-card {
-    background-color: rgba(22, 22, 28, 0.88);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    /* Use CSS variables or light theme defaults, adapting to system preferences */
+    background-color: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.12);
     border-radius: 18px;
     padding: 0px;
     width: 640px;
+    max-height: 480px;
 
     /* Drop shadow — multiple layers for depth */
     box-shadow:
-        0 2px  4px  rgba(0,  0,  0, 0.18),
-        0 8px  24px rgba(0,  0,  0, 0.45),
-        0 32px 64px rgba(0,  0,  0, 0.55);
+        0 2px  4px  rgba(0,  0,  0, 0.10),
+        0 8px  24px rgba(0,  0,  0, 0.20),
+        0 32px 64px rgba(0,  0,  0, 0.30);
 
-    /* Centre horizontally, sit ~22% from top of screen */
+    /* Centre horizontally, sit ~15% from top of screen */
     margin: 0px auto;
-    margin-top: 180px;
+    margin-top: 15vh;
+}
+
+@media (prefers-color-scheme: dark) {
+    .spotlight-card {
+        background-color: rgba(22, 22, 28, 0.95);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow:
+            0 2px  4px  rgba(0,  0,  0, 0.18),
+            0 8px  24px rgba(0,  0,  0, 0.45),
+            0 32px 64px rgba(0,  0,  0, 0.55);
+    }
 }
 
 /* ── Search row ── */
@@ -34,8 +47,14 @@
 }
 
 .spotlight-search-icon {
-    color: rgba(255, 255, 255, 0.5);
+    color: rgba(0, 0, 0, 0.5);
     icon-size: 22px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .spotlight-search-icon {
+        color: rgba(255, 255, 255, 0.5);
+    }
 }
 
 .spotlight-search-entry {
@@ -45,9 +64,16 @@
     padding: 0px;
     font-size: 22px;
     font-weight: 300;
-    color: rgba(255, 255, 255, 0.92);
-    caret-color: rgba(255, 255, 255, 0.85);
+    color: rgba(0, 0, 0, 0.92);
+    caret-color: rgba(0, 0, 0, 0.85);
     selection-background-color: rgba(88, 140, 255, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+    .spotlight-search-entry {
+        color: rgba(255, 255, 255, 0.92);
+        caret-color: rgba(255, 255, 255, 0.85);
+    }
 }
 
 /* Remove the default St.Entry inner border */
@@ -60,14 +86,25 @@
 /* ── Divider between search bar and results ── */
 .spotlight-divider {
     height: 1px;
-    background-color: rgba(255, 255, 255, 0.09);
+    background-color: rgba(0, 0, 0, 0.09);
     margin: 0px 0px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .spotlight-divider {
+        background-color: rgba(255, 255, 255, 0.09);
+    }
 }
 
 /* ── Results list ── */
 .spotlight-results-box {
     padding: 8px 0px;
     spacing: 2px;
+}
+
+.spotlight-results-scroll {
+    /* Set a max height for the results area, enabling scrolling */
+    max-height: 380px;
 }
 
 /* ── Individual result row ── */
@@ -92,12 +129,24 @@
 .spotlight-result-label {
     font-size: 15px;
     font-weight: 400;
-    color: rgba(255, 255, 255, 0.88);
+    color: rgba(0, 0, 0, 0.88);
+}
+
+@media (prefers-color-scheme: dark) {
+    .spotlight-result-label {
+        color: rgba(255, 255, 255, 0.88);
+    }
 }
 
 /* Hover state */
 .spotlight-result-item:hover {
-    background-color: rgba(255, 255, 255, 0.07);
+    background-color: rgba(0, 0, 0, 0.07);
+}
+
+@media (prefers-color-scheme: dark) {
+    .spotlight-result-item:hover {
+        background-color: rgba(255, 255, 255, 0.07);
+    }
 }
 
 /* Keyboard-selected / pseudo-class "selected" state */
@@ -109,15 +158,28 @@
 
 .spotlight-result-item:selected .spotlight-result-label,
 .spotlight-result-item.selected .spotlight-result-label {
-    color: #ffffff;
+    color: #000000;
     font-weight: 500;
+}
+
+@media (prefers-color-scheme: dark) {
+    .spotlight-result-item:selected .spotlight-result-label,
+    .spotlight-result-item.selected .spotlight-result-label {
+        color: #ffffff;
+    }
 }
 
 /* ── "No results" placeholder ── */
 .spotlight-no-results {
     padding: 18px 18px;
     font-size: 14px;
-    color: rgba(255, 255, 255, 0.35);
+    color: rgba(0, 0, 0, 0.35);
     font-style: italic;
     text-align: center;
+}
+
+@media (prefers-color-scheme: dark) {
+    .spotlight-no-results {
+        color: rgba(255, 255, 255, 0.35);
+    }
 }

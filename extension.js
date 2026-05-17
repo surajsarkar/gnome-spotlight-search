@@ -106,9 +106,18 @@ class SpotlightOverlay extends St.Widget {
         this._resultsBox = new St.BoxLayout({
             style_class: 'spotlight-results-box',
             vertical: true,
-            visible: false,
         });
-        this._card.add_child(this._resultsBox);
+        
+        // Wrap results in a ScrollView to enable scrolling
+        this._resultsScroll = new St.ScrollView({
+            style_class: 'spotlight-results-scroll',
+            hscrollbar_policy: St.PolicyType.NEVER,
+            vscrollbar_policy: St.PolicyType.AUTOMATIC,
+            visible: false,
+            x_expand: true,
+        });
+        this._resultsScroll.add_child(this._resultsBox);
+        this._card.add_child(this._resultsScroll);
 
         /* ── key handling on the ClutterText ── */
         this._searchEntry.clutter_text.connect('text-changed', () => {
@@ -189,8 +198,6 @@ class SpotlightOverlay extends St.Widget {
     close() {
         if (!this.visible) return;
 
-        Main.popModal(this);
-
         this._cancelSearchTimeout();
 
         this.ease({
@@ -207,6 +214,7 @@ class SpotlightOverlay extends St.Widget {
                 this.hide();
                 // Return focus to the desktop
                 global.stage.set_key_focus(null);
+                Main.popModal(this);
             },
         });
     }
@@ -248,14 +256,15 @@ class SpotlightOverlay extends St.Widget {
 
         console.log(`[SpotlightSearch] found ${apps.length} apps`);
 
-        this._results = apps.slice(0, 8);
+        // Removed slice limit to populate the scrollbox with all matches
+        this._results = apps;
         this._selectedIndex = this._results.length > 0 ? 0 : -1;
         this._renderResults();
     }
 
     _clearResults() {
         this._resultsBox.remove_all_children();
-        this._resultsBox.hide();
+        this._resultsScroll.hide();
         this._divider.hide();
         this._results = [];
     }
@@ -267,13 +276,13 @@ class SpotlightOverlay extends St.Widget {
                 style_class: 'spotlight-no-results',
             });
             this._resultsBox.add_child(empty);
-            this._resultsBox.show();
+            this._resultsScroll.show();
             this._divider.show();
             return;
         }
 
         this._divider.show();
-        this._resultsBox.show();
+        this._resultsScroll.show();
 
         this._results.forEach((app, index) => {
             const row = new St.Button({
@@ -353,6 +362,28 @@ class SpotlightOverlay extends St.Widget {
         children.forEach((child, i) => {
             if (i === this._selectedIndex) {
                 child.add_style_pseudo_class('selected');
+                // Ensure the selected item is visible in the scroll view
+                if (this._resultsScroll) {
+                    let adjustment = this._resultsScroll.vscroll.adjustment;
+                    if (adjustment) {
+                        let [val, lower, upper, step, page, size] = [
+                            adjustment.value,
+                            adjustment.lower,
+                            adjustment.upper,
+                            adjustment.step_increment,
+                            adjustment.page_increment,
+                            adjustment.page_size
+                        ];
+                        let offset = child.allocation.y1;
+                        let bottom = child.allocation.y2;
+
+                        if (offset < val) {
+                            adjustment.value = offset;
+                        } else if (bottom > val + size) {
+                            adjustment.value = bottom - size;
+                        }
+                    }
+                }
             } else {
                 child.remove_style_pseudo_class('selected');
             }
