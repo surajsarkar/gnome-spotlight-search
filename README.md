@@ -2,7 +2,10 @@
 
 A GNOME Shell extension that transforms the default search interface into a centered, macOS-inspired "Spotlight" search bar.
 
-![Spotlight Search Preview](https://via.placeholder.com/800x450.png?text=Spotlight+Search+for+GNOME+Preview) <!-- Replace with actual screenshot later -->
+<p align="center">
+  <img src=".media/spotlight_preview.png" alt="Alt text" width="500">
+</p>
+ <!-- Replace with actual screenshot later -->
 
 ## Features
 
