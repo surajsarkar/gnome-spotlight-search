@@ -102,33 +102,35 @@
 }
 
 .spotlight-results-scroll {
-    /* Set a max height for the results area, enabling scrolling */
-    max-height: 380px;
+    /* Set a max width for the results area, enabling horizontal scrolling if it overflows */
+    /* Wait, the container takes the width of spotlight-card. So we don't need max-width unless we want it smaller. */
 }
 
 /* ── Individual result row ── */
 .spotlight-result-item {
     background-color: transparent;
-    border-radius: 8px;
-    padding: 0px;
-    margin: 0px;
+    border-radius: 12px;
+    padding: 10px;
+    margin: 4px;
     border: none;
     box-shadow: none;
+    width: 100px; /* Fixed width so icons don't squash */
 }
 
 .spotlight-result-inner {
-    padding: 10px 16px;
-    spacing: 16px;
+    padding: 0px;
+    spacing: 8px; /* Space between icon and text */
 }
 
 .spotlight-result-icon {
-    icon-size: 32px;
+    icon-size: 64px;
 }
 
 .spotlight-result-label {
-    font-size: 16px;
-    font-weight: 400;
+    font-size: 13px;
+    font-weight: 500;
     color: rgba(0, 0, 0, 0.88);
+    text-align: center;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -153,7 +155,7 @@
 .spotlight-result-item.selected {
     background-color: rgba(0, 110, 255, 0.9);
     border: none;
-    border-radius: 8px;
+    border-radius: 12px;
 }
 
 .spotlight-result-item:selected .spotlight-result-label,
