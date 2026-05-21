@@ -241,7 +241,11 @@ class SpotlightOverlay extends St.Widget {
 
         // Immediately pop the modal to prevent multiple pops
         if (this._hasModalGrab) {
-            Main.popModal(this);
+            try {
+                Main.popModal(this);
+            } catch (e) {
+                // Ignore incorrect pop if it was already released
+            }
             this._hasModalGrab = false;
         }
 
@@ -480,9 +484,16 @@ class SpotlightOverlay extends St.Widget {
 
         // Use GIO or Shell API directly to launch the application safely
         const launchAction = () => {
-            const context = global.create_app_launch_context(0, -1);
             try {
-                // Shell.App / Gio.DesktopAppInfo launch patterns
+                // To safely launch under Wayland, look up the GNOME Shell App wrapper
+                const shellApp = Shell.AppSystem.get_default().lookup_app(app.get_id());
+                if (shellApp) {
+                    shellApp.activate();
+                    return;
+                }
+
+                // Fallback to direct GIO launching
+                const context = global.create_app_launch_context(0, -1);
                 if (app.open_new_window) {
                     app.open_new_window(-1);
                 } else if (app.activate) {
