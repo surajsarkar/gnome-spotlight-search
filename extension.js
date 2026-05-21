@@ -41,6 +41,7 @@ class SpotlightOverlay extends St.Widget {
 
         this._extension = extension;
         this._grabHelper   = null;
+        this._hasModalGrab  = false;
         this._selectedIndex = -1;
         this._results       = [];   // ShellApp[]
         this._searchTimeout = null;
@@ -67,6 +68,7 @@ class SpotlightOverlay extends St.Widget {
             reactive: true,
             x_align: Clutter.ActorAlign.CENTER,
             y_align: Clutter.ActorAlign.START,  // positioned via margin-top in CSS
+            y_expand: false,
         });
         // Stop backdrop click-through from the card
         this._card.connect('button-press-event', () => Clutter.EVENT_STOP);
@@ -99,6 +101,7 @@ class SpotlightOverlay extends St.Widget {
         this._divider = new St.Widget({
             style_class: 'spotlight-divider',
             visible: false,
+            y_expand: false,
         });
         this._card.add_child(this._divider);
 
@@ -107,22 +110,33 @@ class SpotlightOverlay extends St.Widget {
             style_class: 'spotlight-results-wrapper',
             vertical: true,
             visible: false,
+            y_expand: false,
+            // Same here, strictly restrict expansion vertically
+            height: 156,
         });
         
         /* ── results list ── */
         this._resultsBox = new St.BoxLayout({
             style_class: 'spotlight-results-box',
-            vertical: true,
+            vertical: false,
+            y_expand: false,
         });
         
         // Wrap results in a ScrollView to enable scrolling
         this._resultsScroll = new St.ScrollView({
             style_class: 'spotlight-results-scroll',
-            hscrollbar_policy: St.PolicyType.NEVER,
-            vscrollbar_policy: St.PolicyType.AUTOMATIC,
+            hscrollbar_policy: St.PolicyType.AUTOMATIC,
+            vscrollbar_policy: St.PolicyType.NEVER,
             visible: false,
             x_expand: true,
+            y_expand: false,
+            // By giving the scroll view a fixed height allocation it prevents layout thrashing
+            height: 140,
         });
+        
+        // Disable overlay scrollbars for horizontal to prevent size allocation crashes
+        this._resultsScroll.overlay_scrollbars = false;
+        
         this._resultsScroll.add_child(this._resultsBox);
         this._resultsWrapper.add_child(this._resultsScroll);
         this._card.add_child(this._resultsWrapper);
@@ -132,8 +146,24 @@ class SpotlightOverlay extends St.Widget {
             this._scheduleSearch();
         });
 
+        // Use key-press-event to capture modifier combos early
+        // We bind to the clutter_text but explicitly return EVENT_STOP to block text insertion.
         this._searchEntry.clutter_text.connect('key-press-event', (_actor, event) => {
             const sym = event.get_key_symbol();
+            const mods = event.get_state();
+            
+            // Check for Alt + 1-9 shortcuts
+            const isAlt = (mods & Clutter.ModifierType.MOD1_MASK) !== 0;
+            if (isAlt && sym >= Clutter.KEY_1 && sym <= Clutter.KEY_9) {
+                // If it's an Alt+Number combo, prevent it from typing the number
+                const index = sym - Clutter.KEY_1;
+                if (index < this._results.length) {
+                    this._setSelectedIndex(index);
+                    this._launchApp(this._results[index]);
+                }
+                return Clutter.EVENT_STOP;
+            }
+
             switch (sym) {
                 case Clutter.KEY_Escape:
                     this.close();
@@ -142,10 +172,12 @@ class SpotlightOverlay extends St.Widget {
                 case Clutter.KEY_KP_Enter:
                     this._activateSelected();
                     return Clutter.EVENT_STOP;
+                case Clutter.KEY_Right:
                 case Clutter.KEY_Down:
                 case Clutter.KEY_Tab:
                     this._selectDelta(+1);
                     return Clutter.EVENT_STOP;
+                case Clutter.KEY_Left:
                 case Clutter.KEY_Up:
                 case Clutter.KEY_ISO_Left_Tab:
                     this._selectDelta(-1);
@@ -176,6 +208,7 @@ class SpotlightOverlay extends St.Widget {
             this.hide();
             return;
         }
+        this._hasModalGrab = true;
 
         // Reset state
         this._searchEntry.set_text('');
@@ -206,6 +239,12 @@ class SpotlightOverlay extends St.Widget {
     close() {
         if (!this.visible) return;
 
+        // Immediately pop the modal to prevent multiple pops
+        if (this._hasModalGrab) {
+            Main.popModal(this);
+            this._hasModalGrab = false;
+        }
+
         this._cancelSearchTimeout();
 
         this.ease({
@@ -220,9 +259,10 @@ class SpotlightOverlay extends St.Widget {
             mode:          Clutter.AnimationMode.EASE_IN_QUAD,
             onComplete:    () => {
                 this.hide();
-                // Return focus to the desktop
-                global.stage.set_key_focus(null);
-                Main.popModal(this);
+                // Surrender keyboard focus at the very end if it hasn't been grabbed elsewhere
+                if (global.stage.get_key_focus() === this._searchEntry.clutter_text) {
+                    global.stage.set_key_focus(null);
+                }
             },
         });
     }
@@ -300,39 +340,59 @@ class SpotlightOverlay extends St.Widget {
                 style_class: 'spotlight-result-item',
                 can_focus: false,   // keyboard nav via _selectedIndex
                 reactive: true,
-                x_align: Clutter.ActorAlign.FILL,
-                x_expand: true,
+                x_align: Clutter.ActorAlign.CENTER,
+                y_align: Clutter.ActorAlign.START,
+                x_expand: false,
+                y_expand: false,
             });
 
             const inner = new St.BoxLayout({
-                vertical: false,
+                vertical: true,
                 style_class: 'spotlight-result-inner',
-                x_expand: true,
+                x_align: Clutter.ActorAlign.CENTER,
             });
             row.set_child(inner);
 
             // App icon
             let iconTexture = null;
             if (app.create_icon_texture) {
-                iconTexture = app.create_icon_texture(32);
+                iconTexture = app.create_icon_texture(64);
             } else {
                 const gioIcon = app.get_icon();
                 iconTexture = new St.Icon({
                     gicon: gioIcon,
-                    icon_size: 32,
+                    icon_size: 64,
                 });
             }
             iconTexture.style_class = 'spotlight-result-icon';
+            iconTexture.x_align = Clutter.ActorAlign.CENTER;
             inner.add_child(iconTexture);
+
+            // App name container to ensure text truncation if it's too long
+            const labelContainer = new St.BoxLayout({
+                vertical: false,
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+            inner.add_child(labelContainer);
 
             // App name
             const label = new St.Label({
                 text: app.get_name(),
-                y_align: Clutter.ActorAlign.CENTER,
                 style_class: 'spotlight-result-label',
-                x_expand: true,
             });
-            inner.add_child(label);
+            // Make the label truncate if it exceeds the fixed width
+            label.clutter_text.ellipsize = imports.gi.Pango.EllipsizeMode.END;
+            labelContainer.add_child(label);
+
+            // Shortcut hint for the first 9 items
+            if (index < 9) {
+                const shortcutHint = new St.Label({
+                    text: `Alt + ${index + 1}`,
+                    style_class: 'spotlight-result-shortcut',
+                    x_align: Clutter.ActorAlign.CENTER,
+                });
+                inner.add_child(shortcutHint);
+            }
 
             // Hover: update keyboard selection to match mouse
             row.connect('enter-event', () => {
@@ -340,12 +400,7 @@ class SpotlightOverlay extends St.Widget {
             });
 
             row.connect('clicked', () => {
-                if (app.activate) {
-                    app.activate();
-                } else if (app.launch) {
-                    app.launch([], null);
-                }
-                this.close();
+                this._launchApp(app);
             });
 
             this._resultsBox.add_child(row);
@@ -375,7 +430,7 @@ class SpotlightOverlay extends St.Widget {
                 child.add_style_pseudo_class('selected');
                 // Ensure the selected item is visible in the scroll view
                 if (this._resultsScroll) {
-                    let adjustment = this._resultsScroll.vscroll.adjustment;
+                    let adjustment = this._resultsScroll.hscroll.adjustment;
                     if (adjustment) {
                         let [val, lower, upper, step, page, size] = [
                             adjustment.value,
@@ -385,13 +440,13 @@ class SpotlightOverlay extends St.Widget {
                             adjustment.page_increment,
                             adjustment.page_size
                         ];
-                        let offset = child.allocation.y1;
-                        let bottom = child.allocation.y2;
+                        let offset = child.allocation.x1;
+                        let rightEdge = child.allocation.x2;
 
                         if (offset < val) {
                             adjustment.value = offset;
-                        } else if (bottom > val + size) {
-                            adjustment.value = bottom - size;
+                        } else if (rightEdge > val + size) {
+                            adjustment.value = rightEdge - size;
                         }
                     }
                 }
@@ -401,15 +456,58 @@ class SpotlightOverlay extends St.Widget {
         });
     }
 
+    _launchApp(app) {
+        if (!app) return;
+
+        // Fully tear down the UI to prevent focus locking Wayland
+        this.hide();
+        this.opacity = 0;
+        this._card.opacity = 0;
+        global.stage.set_key_focus(null);
+
+        if (this._hasModalGrab) {
+            try {
+                Main.popModal(this);
+            } catch (e) {
+                // Ignore incorrect pop if already popped
+            }
+            this._hasModalGrab = false;
+        }
+
+        // Wipe internal state
+        this._searchEntry.set_text('');
+        this._clearResults();
+
+        // Use GIO or Shell API directly to launch the application safely
+        const launchAction = () => {
+            const context = global.create_app_launch_context(0, -1);
+            try {
+                // Shell.App / Gio.DesktopAppInfo launch patterns
+                if (app.open_new_window) {
+                    app.open_new_window(-1);
+                } else if (app.activate) {
+                    app.activate();
+                } else if (app.launch) {
+                    app.launch([], context);
+                } else if (app.get_app_info) {
+                    let appInfo = app.get_app_info();
+                    if (appInfo) appInfo.launch([], context);
+                }
+            } catch (e) {
+                console.error(`[SpotlightSearch] Failed to launch application: ${e.message}`);
+            }
+        };
+
+        // Trigger on the main thread after next idle loop
+        GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
+            launchAction();
+            return GLib.SOURCE_REMOVE;
+        });
+    }
+
     _activateSelected() {
         if (this._selectedIndex < 0 || this._selectedIndex >= this._results.length) return;
-        const app = this._results[this._selectedIndex];
-        if (app.activate) {
-            app.activate();
-        } else if (app.launch) {
-            app.launch([], null);
-        }
-        this.close();
+        this._launchApp(this._results[this._selectedIndex]);
     }
 
     /* ── cleanup ─────────────────────────────────────────────────────────────── */
