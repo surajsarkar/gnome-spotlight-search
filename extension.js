@@ -8,6 +8,12 @@
  *   - A grab (Clutter global grab) captures keyboard input without dimming
  *     the entire screen or blocking the panel.
  *   - Super+Space toggles open/close with slide+fade animation.
+ *
+ * Theme Strategy:
+ *   - Light mode is the default CSS styling (no extra class).
+ *   - Dark mode is activated by adding 'spotlight-dark' class to the overlay.
+ *   - The user chooses 'light', 'dark', or 'system' via preferences.
+ *   - 'system' tracks org.gnome.desktop.interface color-scheme in real time.
  */
 
 import Clutter from 'gi://Clutter';
@@ -29,12 +35,11 @@ class SpotlightOverlay extends St.Widget {
     _init(extension) {
         super._init({
             layout_manager: new Clutter.BinLayout(),
-            // Fill the entire screen so we can centre the card
             x: 0,
             y: 0,
             width:  global.screen_width,
             height: global.screen_height,
-            reactive: true,   // needed so clicks outside close the overlay
+            reactive: true,
             visible: false,
             opacity: 0,
         });
@@ -43,10 +48,9 @@ class SpotlightOverlay extends St.Widget {
         this._grabHelper   = null;
         this._hasModalGrab  = false;
         this._selectedIndex = -1;
-        this._results       = [];   // ShellApp[]
+        this._results       = [];
         this._searchTimeout = null;
 
-        /* ── translucent backdrop (click-to-close) ── */
         this._backdrop = new St.Widget({
             style_class: 'spotlight-backdrop',
             x: 0,
@@ -61,20 +65,17 @@ class SpotlightOverlay extends St.Widget {
         });
         this.add_child(this._backdrop);
 
-        /* ── centred card ── */
         this._card = new St.BoxLayout({
             style_class: 'spotlight-card',
             vertical: true,
             reactive: true,
             x_align: Clutter.ActorAlign.CENTER,
-            y_align: Clutter.ActorAlign.START,  // positioned via margin-top in CSS
+            y_align: Clutter.ActorAlign.START,
             y_expand: false,
         });
-        // Stop backdrop click-through from the card
         this._card.connect('button-press-event', () => Clutter.EVENT_STOP);
         this.add_child(this._card);
 
-        /* ── search row (icon + entry) ── */
         this._searchRow = new St.BoxLayout({
             style_class: 'spotlight-search-row',
             vertical: false,
@@ -97,7 +98,6 @@ class SpotlightOverlay extends St.Widget {
         });
         this._searchRow.add_child(this._searchEntry);
 
-        /* ── Divider between search bar and results ── */
         this._divider = new St.Widget({
             style_class: 'spotlight-divider',
             visible: false,
@@ -105,24 +105,20 @@ class SpotlightOverlay extends St.Widget {
         });
         this._card.add_child(this._divider);
 
-        /* ── Results wrapper for margins ── */
         this._resultsWrapper = new St.BoxLayout({
             style_class: 'spotlight-results-wrapper',
             vertical: true,
             visible: false,
             y_expand: false,
-            // Same here, strictly restrict expansion vertically
             height: 156,
         });
-        
-        /* ── results list ── */
+
         this._resultsBox = new St.BoxLayout({
             style_class: 'spotlight-results-box',
             vertical: false,
             y_expand: false,
         });
-        
-        // Wrap results in a ScrollView to enable scrolling
+
         this._resultsScroll = new St.ScrollView({
             style_class: 'spotlight-results-scroll',
             hscrollbar_policy: St.PolicyType.AUTOMATIC,
@@ -130,41 +126,37 @@ class SpotlightOverlay extends St.Widget {
             visible: false,
             x_expand: true,
             y_expand: false,
-            // By giving the scroll view a fixed height allocation it prevents layout thrashing
             height: 140,
         });
-        
-        // Disable overlay scrollbars for horizontal to prevent size allocation crashes
+
         this._resultsScroll.overlay_scrollbars = false;
-        
+
         this._resultsScroll.add_child(this._resultsBox);
         this._resultsWrapper.add_child(this._resultsScroll);
         this._card.add_child(this._resultsWrapper);
 
-        /* ── key handling on the ClutterText ── */
         this._searchEntry.clutter_text.connect('text-changed', () => {
             this._scheduleSearch();
         });
 
-        // Use key-press-event to capture modifier combos early
-        // We bind to the clutter_text but explicitly return EVENT_STOP to block text insertion.
         this._searchEntry.clutter_text.connect('key-press-event', (_actor, event) => {
-            const sym = event.get_key_symbol();
-            const mods = event.get_state();
-            
-            // Check for Alt + 1-9 shortcuts
-            const isAlt = (mods & Clutter.ModifierType.MOD1_MASK) !== 0;
-            if (isAlt && sym >= Clutter.KEY_1 && sym <= Clutter.KEY_9) {
-                // If it's an Alt+Number combo, prevent it from typing the number
-                const index = sym - Clutter.KEY_1;
-                if (index < this._results.length) {
-                    this._setSelectedIndex(index);
-                    this._launchApp(this._results[index]);
+            const symbol = event.get_key_symbol();
+            const modifiers = event.get_state();
+
+            const isAltHeld = (modifiers & Clutter.ModifierType.MOD1_MASK) !== 0;
+            const isNumberKey = symbol >= Clutter.KEY_1 && symbol <= Clutter.KEY_9;
+
+            if (isAltHeld && isNumberKey) {
+                const targetIndex = symbol - Clutter.KEY_1;
+                const isValidTarget = targetIndex < this._results.length;
+                if (isValidTarget) {
+                    this._setSelectedIndex(targetIndex);
+                    this._launchApp(this._results[targetIndex]);
                 }
                 return Clutter.EVENT_STOP;
             }
 
-            switch (sym) {
+            switch (symbol) {
                 case Clutter.KEY_Escape:
                     this.close();
                     return Clutter.EVENT_STOP;
@@ -186,7 +178,6 @@ class SpotlightOverlay extends St.Widget {
             return Clutter.EVENT_PROPAGATE;
         });
 
-        // Dismiss on global key (Escape) even when focus wanders
         this.connect('key-press-event', (_actor, event) => {
             if (event.get_key_symbol() === Clutter.KEY_Escape) {
                 this.close();
@@ -203,19 +194,16 @@ class SpotlightOverlay extends St.Widget {
 
         this.show();
 
-        // Take a modal grab so Wayland/X11 routes keyboard events to us
         if (!Main.pushModal(this)) {
             this.hide();
             return;
         }
         this._hasModalGrab = true;
 
-        // Reset state
         this._searchEntry.set_text('');
         this._clearResults();
         this._selectedIndex = -1;
 
-        // Slide-down + fade-in animation
         this._card.translation_y = -30;
         this._card.opacity        = 0;
         this.opacity              = 0;
@@ -232,19 +220,17 @@ class SpotlightOverlay extends St.Widget {
             mode:          Clutter.AnimationMode.EASE_OUT_EXPO,
         });
 
-        // Grab keyboard focus
         this._searchEntry.clutter_text.grab_key_focus();
     }
 
     close() {
         if (!this.visible) return;
 
-        // Immediately pop the modal to prevent multiple pops
         if (this._hasModalGrab) {
             try {
                 Main.popModal(this);
-            } catch (e) {
-                // Ignore incorrect pop if it was already released
+            } catch (_error) {
+                // already released
             }
             this._hasModalGrab = false;
         }
@@ -263,8 +249,9 @@ class SpotlightOverlay extends St.Widget {
             mode:          Clutter.AnimationMode.EASE_IN_QUAD,
             onComplete:    () => {
                 this.hide();
-                // Surrender keyboard focus at the very end if it hasn't been grabbed elsewhere
-                if (global.stage.get_key_focus() === this._searchEntry.clutter_text) {
+                const isSearchEntryFocused =
+                    global.stage.get_key_focus() === this._searchEntry.clutter_text;
+                if (isSearchEntryFocused) {
                     global.stage.set_key_focus(null);
                 }
             },
@@ -275,10 +262,9 @@ class SpotlightOverlay extends St.Widget {
 
     _scheduleSearch() {
         this._cancelSearchTimeout();
-        // Tiny debounce so we don't search on every keystroke
         this._searchTimeout = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 80, () => {
             this._searchTimeout = null;
-            this._doSearch();
+            this._performSearch();
             return GLib.SOURCE_REMOVE;
         });
     }
@@ -290,26 +276,27 @@ class SpotlightOverlay extends St.Widget {
         }
     }
 
-    _doSearch() {
-        const text = this._searchEntry.get_text().trim().toLowerCase();
-        console.log(`[SpotlightSearch] _doSearch triggered with text: '${text}'`);
+    _performSearch() {
+        const query = this._searchEntry.get_text().trim().toLowerCase();
         this._clearResults();
 
-        if (text.length === 0) return;
+        if (query.length === 0) return;
 
-        // Use Gio.AppInfo to get all applications
-        const apps = Gio.AppInfo.get_all().filter(app => {
+        const matchingApps = Gio.AppInfo.get_all().filter(app => {
             if (!app.should_show()) return false;
-            const name = (app.get_name() || '').toLowerCase();
-            const id   = (app.get_id()   || '').toLowerCase();
-            const exec = (app.get_executable() || '').toLowerCase();
-            return name.includes(text) || id.includes(text) || exec.includes(text);
+
+            const appName       = (app.get_name() || '').toLowerCase();
+            const appId         = (app.get_id()   || '').toLowerCase();
+            const appExecutable = (app.get_executable() || '').toLowerCase();
+
+            const matchesName       = appName.includes(query);
+            const matchesId         = appId.includes(query);
+            const matchesExecutable = appExecutable.includes(query);
+
+            return matchesName || matchesId || matchesExecutable;
         });
 
-        console.log(`[SpotlightSearch] found ${apps.length} apps`);
-
-        // Removed slice limit to populate the scrollbox with all matches
-        this._results = apps;
+        this._results = matchingApps;
         this._selectedIndex = this._results.length > 0 ? 0 : -1;
         this._renderResults();
     }
@@ -324,11 +311,11 @@ class SpotlightOverlay extends St.Widget {
 
     _renderResults() {
         if (this._results.length === 0) {
-            const empty = new St.Label({
+            const emptyLabel = new St.Label({
                 text: _('No results found'),
                 style_class: 'spotlight-no-results',
             });
-            this._resultsBox.add_child(empty);
+            this._resultsBox.add_child(emptyLabel);
             this._resultsWrapper.show();
             this._resultsScroll.show();
             this._divider.show();
@@ -340,86 +327,85 @@ class SpotlightOverlay extends St.Widget {
         this._resultsScroll.show();
 
         this._results.forEach((app, index) => {
-            const row = new St.Button({
-                style_class: 'spotlight-result-item',
-                can_focus: false,   // keyboard nav via _selectedIndex
-                reactive: true,
-                x_align: Clutter.ActorAlign.CENTER,
-                y_align: Clutter.ActorAlign.START,
-                x_expand: false,
-                y_expand: false,
-            });
-
-            const inner = new St.BoxLayout({
-                vertical: true,
-                style_class: 'spotlight-result-inner',
-                x_align: Clutter.ActorAlign.CENTER,
-            });
-            row.set_child(inner);
-
-            // App icon
-            let iconTexture = null;
-            if (app.create_icon_texture) {
-                iconTexture = app.create_icon_texture(64);
-            } else {
-                const gioIcon = app.get_icon();
-                iconTexture = new St.Icon({
-                    gicon: gioIcon,
-                    icon_size: 64,
-                });
-            }
-            iconTexture.style_class = 'spotlight-result-icon';
-            iconTexture.x_align = Clutter.ActorAlign.CENTER;
-            inner.add_child(iconTexture);
-
-            // App name container to ensure text truncation if it's too long
-            const labelContainer = new St.BoxLayout({
-                vertical: false,
-                x_align: Clutter.ActorAlign.CENTER,
-            });
-            inner.add_child(labelContainer);
-
-            // App name
-            const label = new St.Label({
-                text: app.get_name(),
-                style_class: 'spotlight-result-label',
-            });
-            // Make the label truncate if it exceeds the fixed width
-            label.clutter_text.ellipsize = imports.gi.Pango.EllipsizeMode.END;
-            labelContainer.add_child(label);
-
-            // Shortcut hint for the first 9 items
-            if (index < 9) {
-                const shortcutHint = new St.Label({
-                    text: `Alt + ${index + 1}`,
-                    style_class: 'spotlight-result-shortcut',
-                    x_align: Clutter.ActorAlign.CENTER,
-                });
-                inner.add_child(shortcutHint);
-            }
-
-            // Hover: update keyboard selection to match mouse
-            row.connect('enter-event', () => {
-                this._setSelectedIndex(index);
-            });
-
-            row.connect('clicked', () => {
-                this._launchApp(app);
-            });
-
-            this._resultsBox.add_child(row);
+            const resultButton = this._buildResultButton(app, index);
+            this._resultsBox.add_child(resultButton);
         });
 
-        // Highlight first result
         this._applySelection();
+    }
+
+    _buildResultButton(app, index) {
+        const resultButton = new St.Button({
+            style_class: 'spotlight-result-item',
+            can_focus: false,
+            reactive: true,
+            x_align: Clutter.ActorAlign.CENTER,
+            y_align: Clutter.ActorAlign.START,
+            x_expand: false,
+            y_expand: false,
+        });
+
+        const innerLayout = new St.BoxLayout({
+            vertical: true,
+            style_class: 'spotlight-result-inner',
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+        resultButton.set_child(innerLayout);
+
+        const iconTexture = this._createAppIcon(app);
+        iconTexture.style_class = 'spotlight-result-icon';
+        iconTexture.x_align = Clutter.ActorAlign.CENTER;
+        innerLayout.add_child(iconTexture);
+
+        const labelContainer = new St.BoxLayout({
+            vertical: false,
+            x_align: Clutter.ActorAlign.CENTER,
+        });
+        innerLayout.add_child(labelContainer);
+
+        const nameLabel = new St.Label({
+            text: app.get_name(),
+            style_class: 'spotlight-result-label',
+        });
+        nameLabel.clutter_text.ellipsize = imports.gi.Pango.EllipsizeMode.END;
+        labelContainer.add_child(nameLabel);
+
+        const isWithinShortcutRange = index < 9;
+        if (isWithinShortcutRange) {
+            const shortcutLabel = new St.Label({
+                text: `Alt + ${index + 1}`,
+                style_class: 'spotlight-result-shortcut',
+                x_align: Clutter.ActorAlign.CENTER,
+            });
+            innerLayout.add_child(shortcutLabel);
+        }
+
+        resultButton.connect('enter-event', () => {
+            this._setSelectedIndex(index);
+        });
+
+        resultButton.connect('clicked', () => {
+            this._launchApp(app);
+        });
+
+        return resultButton;
+    }
+
+    _createAppIcon(app) {
+        if (app.create_icon_texture) {
+            return app.create_icon_texture(64);
+        }
+
+        const gioIcon = app.get_icon();
+        return new St.Icon({ gicon: gioIcon, icon_size: 64 });
     }
 
     /* ── keyboard navigation ─────────────────────────────────────────────────── */
 
     _selectDelta(delta) {
         if (this._results.length === 0) return;
-        const next = Math.max(0, Math.min(this._results.length - 1, this._selectedIndex + delta));
-        this._setSelectedIndex(next);
+        const nextIndex = Math.max(0, Math.min(this._results.length - 1, this._selectedIndex + delta));
+        this._setSelectedIndex(nextIndex);
     }
 
     _setSelectedIndex(index) {
@@ -429,41 +415,41 @@ class SpotlightOverlay extends St.Widget {
 
     _applySelection() {
         const children = this._resultsBox.get_children();
-        children.forEach((child, i) => {
-            if (i === this._selectedIndex) {
+        children.forEach((child, childIndex) => {
+            const isSelected = childIndex === this._selectedIndex;
+            if (isSelected) {
                 child.add_style_pseudo_class('selected');
-                // Ensure the selected item is visible in the scroll view
-                if (this._resultsScroll) {
-                    let adjustment = this._resultsScroll.hscroll.adjustment;
-                    if (adjustment) {
-                        let [val, lower, upper, step, page, size] = [
-                            adjustment.value,
-                            adjustment.lower,
-                            adjustment.upper,
-                            adjustment.step_increment,
-                            adjustment.page_increment,
-                            adjustment.page_size
-                        ];
-                        let offset = child.allocation.x1;
-                        let rightEdge = child.allocation.x2;
-
-                        if (offset < val) {
-                            adjustment.value = offset;
-                        } else if (rightEdge > val + size) {
-                            adjustment.value = rightEdge - size;
-                        }
-                    }
-                }
+                this._scrollToChild(child);
             } else {
                 child.remove_style_pseudo_class('selected');
             }
         });
     }
 
+    _scrollToChild(child) {
+        if (!this._resultsScroll) return;
+
+        const adjustment = this._resultsScroll.hscroll.adjustment;
+        if (!adjustment) return;
+
+        const currentScrollPosition = adjustment.value;
+        const viewportSize = adjustment.page_size;
+        const childLeftEdge = child.allocation.x1;
+        const childRightEdge = child.allocation.x2;
+
+        const isChildLeftOfView = childLeftEdge < currentScrollPosition;
+        const isChildRightOfView = childRightEdge > currentScrollPosition + viewportSize;
+
+        if (isChildLeftOfView) {
+            adjustment.value = childLeftEdge;
+        } else if (isChildRightOfView) {
+            adjustment.value = childRightEdge - viewportSize;
+        }
+    }
+
     _launchApp(app) {
         if (!app) return;
 
-        // Fully tear down the UI to prevent focus locking Wayland
         this.hide();
         this.opacity = 0;
         this._card.opacity = 0;
@@ -472,52 +458,50 @@ class SpotlightOverlay extends St.Widget {
         if (this._hasModalGrab) {
             try {
                 Main.popModal(this);
-            } catch (e) {
-                // Ignore incorrect pop if already popped
+            } catch (_error) {
+                // already popped
             }
             this._hasModalGrab = false;
         }
 
-        // Wipe internal state
         this._searchEntry.set_text('');
         this._clearResults();
 
-        // Use GIO or Shell API directly to launch the application safely
-        const launchAction = () => {
-            try {
-                // To safely launch under Wayland, look up the GNOME Shell App wrapper
-                const shellApp = Shell.AppSystem.get_default().lookup_app(app.get_id());
-                if (shellApp) {
-                    shellApp.activate();
-                    return;
-                }
-
-                // Fallback to direct GIO launching
-                const context = global.create_app_launch_context(0, -1);
-                if (app.open_new_window) {
-                    app.open_new_window(-1);
-                } else if (app.activate) {
-                    app.activate();
-                } else if (app.launch) {
-                    app.launch([], context);
-                } else if (app.get_app_info) {
-                    let appInfo = app.get_app_info();
-                    if (appInfo) appInfo.launch([], context);
-                }
-            } catch (e) {
-                console.error(`[SpotlightSearch] Failed to launch application: ${e.message}`);
-            }
-        };
-
-        // Trigger on the main thread after next idle loop
         GLib.idle_add(GLib.PRIORITY_DEFAULT, () => {
-            launchAction();
+            this._executeAppLaunch(app);
             return GLib.SOURCE_REMOVE;
         });
     }
 
+    _executeAppLaunch(app) {
+        try {
+            const shellApp = Shell.AppSystem.get_default().lookup_app(app.get_id());
+            if (shellApp) {
+                shellApp.activate();
+                return;
+            }
+
+            const launchContext = global.create_app_launch_context(0, -1);
+            if (app.open_new_window) {
+                app.open_new_window(-1);
+            } else if (app.activate) {
+                app.activate();
+            } else if (app.launch) {
+                app.launch([], launchContext);
+            } else if (app.get_app_info) {
+                const appInfo = app.get_app_info();
+                if (appInfo) appInfo.launch([], launchContext);
+            }
+        } catch (error) {
+            console.error(`[SpotlightSearch] Failed to launch application: ${error.message}`);
+        }
+    }
+
     _activateSelected() {
-        if (this._selectedIndex < 0 || this._selectedIndex >= this._results.length) return;
+        const isValidSelection =
+            this._selectedIndex >= 0 && this._selectedIndex < this._results.length;
+        if (!isValidSelection) return;
+
         this._launchApp(this._results[this._selectedIndex]);
     }
 
@@ -537,20 +521,31 @@ export default class SpotlightSearch extends Extension {
         this._overlay  = null;
         this._settings = this.getSettings();
 
-        // Temporarily remove the system Super+Space binding (switch input source)
-        // so our keybinding can take over.
-        this._wmSettings  = new Gio.Settings({ schema_id: 'org.gnome.desktop.wm.keybindings' });
+        this._wmSettings = new Gio.Settings({ schema_id: 'org.gnome.desktop.wm.keybindings' });
         this._savedSwitchSource = this._wmSettings.get_strv('switch-input-source');
         if (this._savedSwitchSource.includes('<Super>space')) {
             const filtered = this._savedSwitchSource.filter(s => s !== '<Super>space');
             this._wmSettings.set_strv('switch-input-source', filtered);
         }
 
-        // Build the overlay (not yet shown)
         this._overlay = new SpotlightOverlay(this);
         Main.uiGroup.add_child(this._overlay);
 
-        // Register keybinding
+        this._interfaceSettings = new Gio.Settings({
+            schema_id: 'org.gnome.desktop.interface',
+        });
+
+        this._themeChangedId = this._settings.connect(
+            'changed::theme-mode',
+            () => this._applyTheme()
+        );
+        this._colorSchemeChangedId = this._interfaceSettings.connect(
+            'changed::color-scheme',
+            () => this._applyTheme()
+        );
+
+        this._applyTheme();
+
         Main.wm.addKeybinding(
             'toggle-spotlight',
             this._settings,
@@ -563,21 +558,29 @@ export default class SpotlightSearch extends Extension {
     disable() {
         Main.wm.removeKeybinding('toggle-spotlight');
 
-        // Restore system shortcut
         if (this._savedSwitchSource !== null) {
             this._wmSettings.set_strv('switch-input-source', this._savedSwitchSource);
             this._savedSwitchSource = null;
         }
         this._wmSettings = null;
 
+        if (this._themeChangedId) {
+            this._settings.disconnect(this._themeChangedId);
+            this._themeChangedId = null;
+        }
+
+        if (this._colorSchemeChangedId) {
+            this._interfaceSettings.disconnect(this._colorSchemeChangedId);
+            this._colorSchemeChangedId = null;
+        }
+        this._interfaceSettings = null;
+
         if (this._overlay) {
             this._overlay.destroy();
             this._overlay = null;
         }
 
-        if (this._settings) {
-            this._settings = null;
-        }
+        this._settings = null;
     }
 
     _toggle() {
@@ -588,5 +591,27 @@ export default class SpotlightSearch extends Extension {
         } else {
             this._overlay.open();
         }
+    }
+
+    _applyTheme() {
+        if (!this._overlay) return;
+
+        const themePreference = this._settings.get_string('theme-mode');
+        const shouldUseDark = this._resolveDarkMode(themePreference);
+
+        if (shouldUseDark) {
+            this._overlay.add_style_class_name('spotlight-dark');
+        } else {
+            this._overlay.remove_style_class_name('spotlight-dark');
+        }
+    }
+
+    _resolveDarkMode(themePreference) {
+        if (themePreference === 'dark') return true;
+        if (themePreference === 'light') return false;
+
+        const systemColorScheme = this._interfaceSettings.get_string('color-scheme');
+        const isSystemDark = systemColorScheme === 'prefer-dark';
+        return isSystemDark;
     }
 }

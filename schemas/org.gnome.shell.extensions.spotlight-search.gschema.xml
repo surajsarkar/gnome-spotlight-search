@@ -5,5 +5,10 @@
       <default>['&lt;Super&gt;space']</default>
       <summary>Toggle Spotlight Search</summary>
     </key>
+    <key name="theme-mode" type="s">
+      <default>'system'</default>
+      <summary>Theme mode for Spotlight Search</summary>
+      <description>Controls the visual theme: 'system' (follow desktop), 'light', or 'dark'.</description>
+    </key>
   </schema>
 </schemalist>

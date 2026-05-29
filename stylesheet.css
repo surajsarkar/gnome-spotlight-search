@@ -1,6 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    Spotlight Search — stylesheet.css
    macOS Spotlight-inspired floating search bar for GNOME Shell
+
+   Theme Strategy:
+     Light mode is the default (no extra class needed).
+     Dark mode is activated by adding `.spotlight-dark` to the overlay widget.
+     GNOME Shell's St CSS engine does NOT support @media queries, so we use
+     descendant selectors under the `.spotlight-dark` class instead.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 /* ── Translucent click-to-close backdrop ── */
@@ -8,30 +14,23 @@
     background-color: rgba(0, 0, 0, 0.35);
 }
 
-/* ── The floating card ── */
+/* ── The floating card — Light (default) ── */
 .spotlight-card {
-    /* Use CSS variables or light theme defaults, adapting to system preferences */
     background-color: rgba(245, 245, 245, 0.96);
     border: 1px solid rgba(0, 0, 0, 0.1);
     border-radius: 14px;
     padding: 0px;
     width: 700px;
-    /* Do not set max-height or height to avoid infinite layout loops when horizontal scrolling */
-
-    /* Drop shadow — multiple layers for depth */
     box-shadow: 0 25px 50px rgba(0, 0, 0, 0.25);
-
-    /* Centre horizontally, sit ~15% from top of screen */
     margin: 0px auto;
     margin-top: 150px;
 }
 
-@media (prefers-color-scheme: dark) {
-    .spotlight-card {
-        background-color: rgba(30, 30, 30, 0.95);
-        border: 1px solid rgba(255, 255, 255, 0.15);
-        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6);
-    }
+/* ── The floating card — Dark ── */
+.spotlight-dark .spotlight-card {
+    background-color: rgba(30, 30, 30, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6);
 }
 
 /* ── Search row ── */
@@ -40,17 +39,18 @@
     spacing: 16px;
 }
 
+/* ── Search icon — Light ── */
 .spotlight-search-icon {
     color: rgba(0, 0, 0, 0.5);
     icon-size: 24px;
 }
 
-@media (prefers-color-scheme: dark) {
-    .spotlight-search-icon {
-        color: rgba(255, 255, 255, 0.5);
-    }
+/* ── Search icon — Dark ── */
+.spotlight-dark .spotlight-search-icon {
+    color: rgba(255, 255, 255, 0.5);
 }
 
+/* ── Search entry — Light ── */
 .spotlight-search-entry {
     background-color: transparent;
     border: none;
@@ -63,11 +63,10 @@
     selection-background-color: rgba(0, 110, 255, 0.45);
 }
 
-@media (prefers-color-scheme: dark) {
-    .spotlight-search-entry {
-        color: rgba(255, 255, 255, 0.92);
-        caret-color: rgba(255, 255, 255, 0.85);
-    }
+/* ── Search entry — Dark ── */
+.spotlight-dark .spotlight-search-entry {
+    color: rgba(255, 255, 255, 0.92);
+    caret-color: rgba(255, 255, 255, 0.85);
 }
 
 /* Remove the default St.Entry inner border */
@@ -77,22 +76,21 @@
     box-shadow: none;
 }
 
-/* ── Divider between search bar and results ── */
+/* ── Divider — Light ── */
 .spotlight-divider {
     height: 1px;
     background-color: rgba(0, 0, 0, 0.08);
     margin: 0px 0px;
 }
 
-@media (prefers-color-scheme: dark) {
-    .spotlight-divider {
-        background-color: rgba(255, 255, 255, 0.08);
-    }
+/* ── Divider — Dark ── */
+.spotlight-dark .spotlight-divider {
+    background-color: rgba(255, 255, 255, 0.08);
 }
 
 /* ── Results wrapper ── */
 .spotlight-results-wrapper {
-    padding: 8px 8px 8px 8px; /* Give some breathing room inside the card, like macOS Spotlight */
+    padding: 8px 8px 8px 8px;
 }
 
 /* ── Results list ── */
@@ -102,7 +100,6 @@
 }
 
 .spotlight-results-scroll {
-    /* Set a max width for the results area, enabling horizontal scrolling if it overflows */
     height: 140px;
 }
 
@@ -114,19 +111,20 @@
     margin: 4px;
     border: none;
     box-shadow: none;
-    width: 100px; /* Fixed width so icons don't squash */
-    height: 120px; /* Explicitly fixed height for stable geometry */
+    width: 100px;
+    height: 120px;
 }
 
 .spotlight-result-inner {
     padding: 0px;
-    spacing: 8px; /* Space between icon and text */
+    spacing: 8px;
 }
 
 .spotlight-result-icon {
     icon-size: 64px;
 }
 
+/* ── Result label — Light ── */
 .spotlight-result-label {
     font-size: 13px;
     font-weight: 500;
@@ -134,12 +132,12 @@
     text-align: center;
 }
 
-@media (prefers-color-scheme: dark) {
-    .spotlight-result-label {
-        color: rgba(255, 255, 255, 0.88);
-    }
+/* ── Result label — Dark ── */
+.spotlight-dark .spotlight-result-label {
+    color: rgba(255, 255, 255, 0.88);
 }
 
+/* ── Shortcut hint — Light ── */
 .spotlight-result-shortcut {
     font-size: 11px;
     font-weight: 600;
@@ -148,24 +146,22 @@
     margin-top: 2px;
 }
 
-@media (prefers-color-scheme: dark) {
-    .spotlight-result-shortcut {
-        color: rgba(255, 255, 255, 0.45);
-    }
+/* ── Shortcut hint — Dark ── */
+.spotlight-dark .spotlight-result-shortcut {
+    color: rgba(255, 255, 255, 0.45);
 }
 
-/* Hover state */
+/* ── Hover state — Light ── */
 .spotlight-result-item:hover {
     background-color: rgba(0, 0, 0, 0.07);
 }
 
-@media (prefers-color-scheme: dark) {
-    .spotlight-result-item:hover {
-        background-color: rgba(255, 255, 255, 0.07);
-    }
+/* ── Hover state — Dark ── */
+.spotlight-dark .spotlight-result-item:hover {
+    background-color: rgba(255, 255, 255, 0.07);
 }
 
-/* Keyboard-selected / pseudo-class "selected" state */
+/* ── Keyboard-selected state ── */
 .spotlight-result-item:selected,
 .spotlight-result-item.selected {
     background-color: rgba(0, 110, 255, 0.9);
@@ -181,20 +177,19 @@
     font-weight: 500;
 }
 
-@media (prefers-color-scheme: dark) {
-    .spotlight-result-item:selected,
-    .spotlight-result-item.selected {
-        background-color: rgba(0, 110, 255, 0.85);
-    }
-    .spotlight-result-item:selected .spotlight-result-label,
-    .spotlight-result-item.selected .spotlight-result-label,
-    .spotlight-result-item:selected .spotlight-result-shortcut,
-    .spotlight-result-item.selected .spotlight-result-shortcut {
-        color: #ffffff;
-    }
+.spotlight-dark .spotlight-result-item:selected,
+.spotlight-dark .spotlight-result-item.selected {
+    background-color: rgba(0, 110, 255, 0.85);
 }
 
-/* ── "No results" placeholder ── */
+.spotlight-dark .spotlight-result-item:selected .spotlight-result-label,
+.spotlight-dark .spotlight-result-item.selected .spotlight-result-label,
+.spotlight-dark .spotlight-result-item:selected .spotlight-result-shortcut,
+.spotlight-dark .spotlight-result-item.selected .spotlight-result-shortcut {
+    color: #ffffff;
+}
+
+/* ── "No results" placeholder — Light ── */
 .spotlight-no-results {
     padding: 18px 18px;
     font-size: 14px;
@@ -203,8 +198,7 @@
     text-align: center;
 }
 
-@media (prefers-color-scheme: dark) {
-    .spotlight-no-results {
-        color: rgba(255, 255, 255, 0.35);
-    }
+/* ── "No results" placeholder — Dark ── */
+.spotlight-dark .spotlight-no-results {
+    color: rgba(255, 255, 255, 0.35);
 }
